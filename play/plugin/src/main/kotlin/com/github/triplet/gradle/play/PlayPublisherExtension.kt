@@ -109,6 +109,14 @@ abstract class PlayPublisherExtension @Inject constructor(
     abstract val versionCode: Property<Long>
 
     /**
+     * Keep an ongoing staged rollout on [promoteTrack] running when promoting from a different
+     * [fromTrack]. By default a promotion replaces the target track's releases and halts that
+     * rollout. Defaults to `false`.
+     */
+    @get:Input
+    abstract val retainExistingRollout: Property<Boolean>
+
+    /**
      * Specify the initial user fraction intended to receive an `inProgress` release. Defaults to
      * 0.1 (10%).
      *

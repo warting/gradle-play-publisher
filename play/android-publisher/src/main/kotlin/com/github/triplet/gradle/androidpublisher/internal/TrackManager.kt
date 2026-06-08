@@ -34,6 +34,7 @@ internal interface TrackManager {
             val promoteTrackName: String,
             val fromTrackName: String,
             val versionCode: Long?,
+            val retainExistingRollout: Boolean,
             val base: BaseConfig,
     )
 }
@@ -85,10 +86,22 @@ internal class DefaultTrackManager(
         for (release in track.releases) {
             release.mergeChanges(config.versionCode?.let { listOf(it) }, config.base)
         }
+
+        // Carry over any staged rollout (in-progress or halted) already on the promote track so
+        // that updateTrack — which replaces the track's releases wholesale — doesn't halt it.
+        val retained = if (config.retainExistingRollout && config.promoteTrackName != config.fromTrackName) {
+            publisher.getTrack(editId, config.promoteTrackName)
+                    .releases.orEmpty()
+                    .filter { it.isRollout() }
+        } else {
+            emptyList()
+        }
+
         // Only keep the unique statuses from the highest version code since duplicate statuses are
         // not allowed. This is how we deal with an update from inProgress -> completed. We update
-        // all the tracks to completed, then get rid of the one that used to be inProgress.
-        track.releases = track.releases.sortedByDescending {
+        // all the tracks to completed, then get rid of the one that used to be inProgress. The same
+        // dedup resolves conflicts between the promoted and retained releases.
+        track.releases = (track.releases + retained).sortedByDescending {
             it.versionCodes?.maxOrNull()
         }.distinctBy {
             it.status

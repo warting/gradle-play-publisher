@@ -111,11 +111,13 @@ internal class DefaultEditManager(
             updatePriority: Int?,
             retainableArtifacts: List<Long>?,
             versionCode: Long?,
+            retainExistingRollout: Boolean,
     ) {
         tracks.promote(TrackManager.PromoteConfig(
                 promoteTrackName,
                 fromTrackName,
                 versionCode,
+                retainExistingRollout,
                 TrackManager.BaseConfig(
                         releaseStatus,
                         userFraction,
@@ -123,7 +125,7 @@ internal class DefaultEditManager(
                         releaseNotes,
                         retainableArtifacts,
                         releaseName
-                )
+                ),
         ))
     }
 

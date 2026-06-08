@@ -658,6 +658,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.COMPLETED,
                         userFraction = .88,
@@ -665,7 +666,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = mapOf("lang1" to "notes1"),
                         retainableArtifacts = listOf(777),
                         releaseName = "relname"
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             releases = listOf(TrackRelease())
@@ -684,6 +685,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.IN_PROGRESS,
                         userFraction = .88,
@@ -691,7 +693,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = mapOf("lang1" to "notes1"),
                         retainableArtifacts = listOf(777),
                         releaseName = "relname"
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"
@@ -725,6 +727,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.COMPLETED,
                         userFraction = null,
@@ -732,7 +735,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"
@@ -767,6 +770,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = null,
                         userFraction = null,
@@ -774,7 +778,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"
@@ -816,6 +820,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.COMPLETED,
                         userFraction = null,
@@ -823,7 +828,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"
@@ -840,11 +845,191 @@ class DefaultTrackManagerTest {
     }
 
     @Test
+    fun `Promoting with retainExistingRollout keeps the promote track's in-progress rollout`() {
+        val config = TrackManager.PromoteConfig(
+                promoteTrackName = "production",
+                fromTrackName = "internal",
+                versionCode = null,
+                retainExistingRollout = true,
+                base = TrackManager.BaseConfig(
+                        releaseStatus = ReleaseStatus.DRAFT,
+                        userFraction = null,
+                        updatePriority = null,
+                        releaseNotes = null,
+                        retainableArtifacts = null,
+                        releaseName = null
+                ),
+        )
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("internal"))).thenReturn(Track().apply {
+            track = "internal"
+            releases = listOf(TrackRelease().apply {
+                status = "completed"
+                versionCodes = listOf(5)
+            })
+        })
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("production"))).thenReturn(Track().apply {
+            track = "production"
+            releases = listOf(
+                    TrackRelease().apply {
+                        status = "inProgress"
+                        userFraction = 0.5
+                        versionCodes = listOf(4)
+                    },
+                    TrackRelease().apply {
+                        status = "completed"
+                        versionCodes = listOf(3)
+                    }
+            )
+        })
+
+        tracks.promote(config)
+
+        val trackCaptor = ArgumentCaptor.forClass(Track::class.java)
+        verify(mockPublisher).updateTrack(eq("edit-id"), trackCaptor.capture())
+        assertThat(trackCaptor.value.track).isEqualTo("production")
+        // The existing inProgress rollout (4) is kept; the completed baseline (3) is not.
+        assertThat(trackCaptor.value.releases.map { it.status })
+                .containsExactly("draft", "inProgress")
+        val rollout = trackCaptor.value.releases.single { it.status == "inProgress" }
+        assertThat(rollout.versionCodes).containsExactly(4L)
+        assertThat(rollout.userFraction).isEqualTo(0.5)
+        assertThat(trackCaptor.value.releases.single { it.status == "draft" }.versionCodes)
+                .containsExactly(5L)
+    }
+
+    @Test
+    fun `Promoting with retainExistingRollout keeps a halted rollout on the promote track`() {
+        val config = TrackManager.PromoteConfig(
+                promoteTrackName = "production",
+                fromTrackName = "internal",
+                versionCode = null,
+                retainExistingRollout = true,
+                base = TrackManager.BaseConfig(
+                        releaseStatus = ReleaseStatus.DRAFT,
+                        userFraction = null,
+                        updatePriority = null,
+                        releaseNotes = null,
+                        retainableArtifacts = null,
+                        releaseName = null
+                ),
+        )
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("internal"))).thenReturn(Track().apply {
+            track = "internal"
+            releases = listOf(TrackRelease().apply {
+                status = "completed"
+                versionCodes = listOf(5)
+            })
+        })
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("production"))).thenReturn(Track().apply {
+            track = "production"
+            releases = listOf(TrackRelease().apply {
+                status = "halted"
+                userFraction = 0.5
+                versionCodes = listOf(4)
+            })
+        })
+
+        tracks.promote(config)
+
+        val trackCaptor = ArgumentCaptor.forClass(Track::class.java)
+        verify(mockPublisher).updateTrack(eq("edit-id"), trackCaptor.capture())
+        assertThat(trackCaptor.value.releases.map { it.status })
+                .containsExactly("draft", "halted")
+        val halted = trackCaptor.value.releases.single { it.status == "halted" }
+        assertThat(halted.versionCodes).containsExactly(4L)
+        assertThat(halted.userFraction).isEqualTo(0.5)
+    }
+
+    @Test
+    fun `Promoting with retainExistingRollout drops target releases superseded by the promotion`() {
+        val config = TrackManager.PromoteConfig(
+                promoteTrackName = "production",
+                fromTrackName = "internal",
+                versionCode = null,
+                retainExistingRollout = true,
+                base = TrackManager.BaseConfig(
+                        releaseStatus = ReleaseStatus.DRAFT,
+                        userFraction = null,
+                        updatePriority = null,
+                        releaseNotes = null,
+                        retainableArtifacts = null,
+                        releaseName = null
+                ),
+        )
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("internal"))).thenReturn(Track().apply {
+            track = "internal"
+            releases = listOf(TrackRelease().apply {
+                status = "completed"
+                versionCodes = listOf(5)
+            })
+        })
+        // Promote track already has a stale draft; it must be replaced (one release per status).
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("production"))).thenReturn(Track().apply {
+            track = "production"
+            releases = listOf(TrackRelease().apply {
+                status = "draft"
+                versionCodes = listOf(2)
+            })
+        })
+
+        tracks.promote(config)
+
+        val trackCaptor = ArgumentCaptor.forClass(Track::class.java)
+        verify(mockPublisher).updateTrack(eq("edit-id"), trackCaptor.capture())
+        assertThat(trackCaptor.value.releases).hasSize(1)
+        assertThat(trackCaptor.value.releases.single().status).isEqualTo("draft")
+        assertThat(trackCaptor.value.releases.single().versionCodes).containsExactly(5L)
+    }
+
+    @Test
+    fun `Promoting with retainExistingRollout does not retain non-rollout target releases`() {
+        // The target's `draft @ 2` would not conflict on status or version code with the
+        // promoted `completed @ 5`, but it is not a rollout and must still be dropped.
+        val config = TrackManager.PromoteConfig(
+                promoteTrackName = "production",
+                fromTrackName = "internal",
+                versionCode = null,
+                retainExistingRollout = true,
+                base = TrackManager.BaseConfig(
+                        releaseStatus = null,
+                        userFraction = null,
+                        updatePriority = null,
+                        releaseNotes = null,
+                        retainableArtifacts = null,
+                        releaseName = null
+                ),
+        )
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("internal"))).thenReturn(Track().apply {
+            track = "internal"
+            releases = listOf(TrackRelease().apply {
+                status = "completed"
+                versionCodes = listOf(5)
+            })
+        })
+        `when`(mockPublisher.getTrack(eq("edit-id"), eq("production"))).thenReturn(Track().apply {
+            track = "production"
+            releases = listOf(TrackRelease().apply {
+                status = "draft"
+                versionCodes = listOf(2)
+            })
+        })
+
+        tracks.promote(config)
+
+        val trackCaptor = ArgumentCaptor.forClass(Track::class.java)
+        verify(mockPublisher).updateTrack(eq("edit-id"), trackCaptor.capture())
+        assertThat(trackCaptor.value.releases).hasSize(1)
+        assertThat(trackCaptor.value.releases.single().status).isEqualTo("completed")
+        assertThat(trackCaptor.value.releases.single().versionCodes).containsExactly(5L)
+    }
+
+    @Test
     fun `Promoting track uses existing release notes when no local ones are available`() {
         val config = TrackManager.PromoteConfig(
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.COMPLETED,
                         userFraction = null,
@@ -852,7 +1037,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"
@@ -903,6 +1088,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "alpha",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.COMPLETED,
                         userFraction = null,
@@ -910,7 +1096,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "alpha"
@@ -939,6 +1125,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "alpha",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = ReleaseStatus.COMPLETED,
                         userFraction = .8,
@@ -946,7 +1133,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "alpha"
@@ -975,6 +1162,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = null,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = null,
                         userFraction = .5,
@@ -982,7 +1170,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"
@@ -1007,6 +1195,7 @@ class DefaultTrackManagerTest {
                 promoteTrackName = "alpha",
                 fromTrackName = "internal",
                 versionCode = 2,
+                retainExistingRollout = false,
                 base = TrackManager.BaseConfig(
                         releaseStatus = null,
                         userFraction = .5,
@@ -1014,7 +1203,7 @@ class DefaultTrackManagerTest {
                         releaseNotes = null,
                         retainableArtifacts = null,
                         releaseName = null
-                )
+                ),
         )
         `when`(mockPublisher.getTrack(any(), any())).thenReturn(Track().apply {
             track = "internal"

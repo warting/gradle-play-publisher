@@ -86,6 +86,13 @@ internal interface UpdatableTrackExtensionOptions : TrackExtensionOptions {
 
     @get:Internal
     @set:Option(
+            option = "retain-existing-rollout",
+            description = "Keep an ongoing staged rollout on the promote track running."
+    )
+    var retainExistingRolloutOption: Boolean
+
+    @get:Internal
+    @set:Option(
             option = "update",
             description = "Set the track to update when promoting releases. This is the same as " +
                     "using 'from-track' and 'track' with the same value."
@@ -187,6 +194,12 @@ internal class CliOptionsImpl(
         get() = throw UnsupportedOperationException()
         set(value) {
             extension.promoteTrack.set(value)
+        }
+
+    override var retainExistingRolloutOption: Boolean
+        get() = throw UnsupportedOperationException()
+        set(value) {
+            extension.retainExistingRollout.set(value)
         }
 
     override var updateTrackOption: String

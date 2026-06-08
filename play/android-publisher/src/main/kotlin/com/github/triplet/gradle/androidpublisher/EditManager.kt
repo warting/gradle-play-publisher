@@ -65,7 +65,8 @@ interface EditManager {
             userFraction: Double?,
             updatePriority: Int?,
             retainableArtifacts: List<Long>?,
-            versionCode: Long?
+            versionCode: Long?,
+            retainExistingRollout: Boolean,
     )
 
     /** Uploads the given [bundleFile]. */
