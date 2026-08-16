@@ -67,6 +67,7 @@ class PublishSubscriptionsIntegrationTest : IntegrationTestBase(), SharedIntegra
         assertThat(result.output).contains("updateInAppSubscription(")
         assertThat(result.output).doesNotContain("insertInAppSubscription(")
         assertThat(result.output).contains("subscription.json")
+        assertThat(result.output).contains("2025/03")
         assertThat(result.output).contains("Uploading subscription")
     }
 
@@ -125,11 +126,11 @@ class PublishSubscriptionsIntegrationTest : IntegrationTestBase(), SharedIntegra
         fun installFactories() {
             val publisher = object : FakePlayPublisher() {
                 override fun insertInAppSubscription(subscriptionFile: File, regionsVersion: String) {
-                    println("insertInAppSubscription($subscriptionFile)")
+                    println("insertInAppSubscription($subscriptionFile, $regionsVersion)")
                 }
 
                 override fun updateInAppSubscription(subscriptionFile: File, regionsVersion: String): UpdateSubscriptionResponse {
-                    println("updateInAppSubscription($subscriptionFile)")
+                    println("updateInAppSubscription($subscriptionFile, $regionsVersion)")
                     return newUpdateSubscriptionResponse(System.getProperty("NEEDS_CREATING") != null)
                 }
             }
